@@ -52,3 +52,10 @@ describe('useTicketList', () => {
     expect(result.current.data?.items).toHaveLength(1);
   });
 });
+
+it('requests immediately when status changes with an empty search (DEFECT-117)', async () => {
+  getTickets.mockResolvedValue(page([ticketListItem()]));
+  const { result } = renderHook(() => useTicketList());
+  await act(async () => { result.current.updateFilters({ status: 'InProgress' }); });
+  expect(getTickets).toHaveBeenLastCalledWith(expect.objectContaining({ status: 'InProgress', search: '' }));
+});

@@ -30,29 +30,36 @@ export function useTicketList() {
   const [filters, setFilters] = useState<TicketFilters>(emptyFilters);
   const [state, setState] = useState<State>({ isLoading: true });
 
-  const load = async () => {
-    setState((current) => ({ ...current, isLoading: true, error: undefined }));
-
-    try {
-      const data = await ticketsApi.getTickets(filters);
-      setState({ isLoading: false, data, error: undefined });
-    } catch (error) {
-      const message = error instanceof ApiError ? error.message : 'Unable to load tickets.';
-      setState((current) => ({ ...current, isLoading: false, error: message }));
-    }
-  };
-
+  const [search, setSearch] = useState(filters.search);
+  const [refresh, setRefresh] = useState(0);
   useEffect(() => {
-    const handle = window.setTimeout(load, DEBOUNCE_MS);
-
+    const handle = window.setTimeout(() => setSearch(filters.search), DEBOUNCE_MS);
     return () => window.clearTimeout(handle);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- filters object identity changes every render
-  }, [filters.search, filters.page, filters.pageSize]);
+  }, [filters.search]);
+
+  // A value-based key includes future filters automatically; only search is delayed.
+  const queryKey = JSON.stringify({ ...filters, search });
+  useEffect(() => {
+    let cancelled = false;
+    const query: TicketFilters = JSON.parse(queryKey);
+    const load = async () => {
+      setState((current) => ({ ...current, isLoading: true, error: undefined }));
+      try {
+        const data = await ticketsApi.getTickets(query);
+        if (!cancelled) setState({ isLoading: false, data });
+      } catch (error) {
+        const message = error instanceof ApiError ? error.message : 'Unable to load tickets.';
+        if (!cancelled) setState((current) => ({ ...current, isLoading: false, error: message }));
+      }
+    };
+    void load();
+    return () => { cancelled = true; };
+  }, [queryKey, refresh]);
 
   const updateFilters = (patch: Partial<TicketFilters>) =>
     setFilters((current) => ({ ...current, ...patch, page: patch.page ?? 1 }));
 
   const resetFilters = () => setFilters(emptyFilters);
 
-  return { filters, updateFilters, resetFilters, reload: load, ...state };
+  return { filters, updateFilters, resetFilters, reload: () => setRefresh((value) => value + 1), ...state };
 }
