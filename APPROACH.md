@@ -28,10 +28,26 @@ Codex generated implementation and tests, inspected source and test output, and 
 
 ## Time accounting
 
-Task 1 involved approximately 10–15 minutes of active AI-assisted work across the initial sessions. Task 2 and later tasks are still in progress. These are rough observed working-time estimates, not a claim about the candidate's personal effort; connection waits, overnight pauses and environment restoration are excluded.
+Task 1 involved approximately 10–15 minutes of active AI-assisted work across the initial sessions. Final estimates for all tasks appear below. These are rough observed working-time estimates, not a claim about the candidate's personal effort; connection waits, overnight pauses and environment restoration are excluded.
 
 ## Task 3 — authentication
 
 Credentials live on Agent because the assignment has a single account type and excludes registration, roles and external identity. A separate users table adds no useful distinction here. Store only Identity PasswordHasher output (salted PBKDF2); never store the fixture password as a database value. Seed missing hashes on existing development databases as well as fresh ones. Inactive agents cannot log in. Email matching trims whitespace and ignores case; failures share one message.
 
 JWT validation checks signature, algorithm, issuer, audience and expiration with zero clock skew. A fallback policy protects every controller except explicitly anonymous login; Swagger remains open in Development. Escalation actor is the stable numeric agent ID from `sub`, so renaming an agent does not corrupt history attribution and supplied actor fields have no effect. Tokens last 60 minutes. Session storage provides tab-scoped persistence; logout and 401 clear it. A server token revocation mechanism and hardened cookie-based browser sessions would be production considerations, outside this assessment.
+
+## Task 4 — container and developer experience
+
+Project files and central build properties are copied before source to preserve the restore cache. Publish in the SDK stage and copy only published output into ASP.NET runtime; use the base image's non-root APP_UID and port 8080. Exclude Development settings from the build context so the inherited local database password is not carried in the image. Compose supplies environment-specific settings and waits for SQL Server health. The anonymous health endpoint checks connectivity without leaking connection details.
+
+The Node setup helper generates an ignored local JWT key and preserves it on later runs. The native API wrapper loads .env explicitly; ASP.NET Core does not load dotenv files by itself. Native development defaults to HTTP 5043, matching the Vite proxy, while the Docker workflow selects 5080 explicitly.
+
+Docker execution could not be completed: neither the executable nor a daemon/socket exists in this environment. Static YAML validation, Release publish and HTTP health endpoint tests passed. Image size, runtime UID, clean-volume boot and cached rebuild are explicitly not measured. README contains the commands to finish those checks; optional Task 4 remains incompletely verified.
+
+## Final verification and review topics
+
+The backend suite reached 48 passing tests, including HTTP tests of real JWT middleware and password verification; frontend reached 13 passing tests plus lint, type checking and build. The original transitive Pkcs 9.0.11 dependency emitted vulnerability warnings; a central version override upgrades it to 10.0.13. No actual SQL Server instance or container was used; do not confuse SQL translation/SQLite tests with production-provider integration tests.
+
+Walk through: (1) how the list effect reacts without debouncing dropdowns, (2) why query composition occurs before counting, (3) pure policy versus persistence orchestration, (4) why escalation needs its own SLA start, (5) immutable history and atomic save, (6) central JWT validation and token-derived actor, (7) XSS/sessionStorage and concurrency limits. For 10 million tickets, investigate execution plans/full-text search, indexed assignment workload and SQL-side candidate selection; avoid loading all agents. For production, add concurrency control, reviewed authentication/session handling and controlled schema deployment rather than claiming this local demo is production-ready.
+
+Final rough active AI-assisted time: Task 1 ~15 min; Task 2 ~25 min; Task 3 ~15 min; Task 4/setup/docs ~15 min. Estimates exclude pauses and access/environment waits and are not the candidate's personal time record.
