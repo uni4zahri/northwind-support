@@ -18,9 +18,9 @@ A reusable SLA indicator already existed; extend it rather than inventing a seco
 
 ## Environment and publication
 
-Work is in a local checkout whose origin is `https://github.com/uni4zahri/northwind-support.git`. The upstream repository is not a push target. GitHub connector reads succeed, but tree creation returned HTTP 403 "Resource not accessible by integration" on both attempts. Local history is preserved; no claim is made that these commits have been published.
+Implementation commits through `9c26209` were published to https://github.com/uni4zahri/northwind-support from GitHub Codespaces. The GitHub connector initially rejected writes with HTTP 403, so the complete Git bundle was imported and pushed using the candidate's authenticated Codespaces terminal. The upstream repository was not changed.
 
-The original container had no .NET SDK or Docker. Installed .NET 10.0.402 to run tests. A session restart removed the temporary SDK; restored it under the working directory. Used single-process MSBuild and disabled compiler servers to avoid the environment's named-pipe limitation. No Docker daemon is available yet.
+The initial implementation environment lacked .NET and Docker. Installed/restored .NET 10.0.402 and used single-process MSBuild with compiler servers disabled to avoid named-pipe restrictions. Docker runtime verification was subsequently completed in Codespaces; nothing was installed on the candidate's physical PC.
 
 ## AI usage
 
@@ -42,12 +42,16 @@ Project files and central build properties are copied before source to preserve 
 
 The Node setup helper generates an ignored local JWT key and preserves it on later runs. The native API wrapper loads .env explicitly; ASP.NET Core does not load dotenv files by itself. Native development defaults to HTTP 5043, matching the Vite proxy, while the Docker workflow selects 5080 explicitly.
 
-Docker execution could not be completed: neither the executable nor a daemon/socket exists in this environment. Static YAML validation, Release publish and HTTP health endpoint tests passed. Image size, runtime UID, clean-volume boot and cached rebuild are explicitly not measured. README contains the commands to finish those checks; optional Task 4 remains incompletely verified.
+Docker verification subsequently passed in Codespaces: new-volume startup and seeding, database-backed health HTTP 200, non-root UID 1654, and restore cache preserved after a C# comment change while publish reran. The source was restored and original image rebuilt. API image size was 455,430,070 bytes versus SDK 1,303,841,725 bytes (about 65.1% smaller). Anonymous tickets returned 401; login, current-user lookup and authenticated tickets returned 200. The original database volume was restored after the isolated fresh-volume check, with health reverified.
+
+A concrete environment issue was diagnosed before success: DNS and SQL's own TCP connection worked, but cross-container traffic timed out. Legacy iptables FORWARD DROP rules only covered docker0. Adding an ACCEPT rule scoped to traffic within the project's bridge in legacy DOCKER-USER fixed the connection. No global firewall policy was relaxed. The rule is environment-specific and may need reassessment when the network or Codespace changes. Development Data Protection storage warnings remain visible.
 
 ## Final verification and review topics
 
-The backend suite reached 48 passing tests, including HTTP tests of real JWT middleware and password verification; frontend reached 13 passing tests plus lint, type checking and build. The original transitive Pkcs 9.0.11 dependency emitted vulnerability warnings; a central version override upgrades it to 10.0.13. No actual SQL Server instance or container was used; do not confuse SQL translation/SQLite tests with production-provider integration tests.
+The backend suite reached 48 passing tests, including HTTP tests of real JWT middleware and password verification; frontend reached 13 passing tests plus lint, type checking and build. The original transitive Pkcs 9.0.11 dependency emitted vulnerability warnings; a central version override upgrades it to 10.0.13. The automated suite used SQLite/TestServer plus SQL translation checks. Subsequent live SQL Server smoke checks covered migrations, seeding, health, login and authenticated ticket retrieval; they do not constitute exhaustive live-provider business-rule or browser end-to-end testing.
 
 Walk through: (1) how the list effect reacts without debouncing dropdowns, (2) why query composition occurs before counting, (3) pure policy versus persistence orchestration, (4) why escalation needs its own SLA start, (5) immutable history and atomic save, (6) central JWT validation and token-derived actor, (7) XSS/sessionStorage and concurrency limits. For 10 million tickets, investigate execution plans/full-text search, indexed assignment workload and SQL-side candidate selection; avoid loading all agents. For production, add concurrency control, reviewed authentication/session handling and controlled schema deployment rather than claiming this local demo is production-ready.
 
 Final rough active AI-assisted time: Task 1 ~15 min; Task 2 ~25 min; Task 3 ~15 min; Task 4/setup/docs ~15 min. Estimates exclude pauses and access/environment waits and are not the candidate's personal time record.
+
+Additional guided Docker verification/troubleshooting: approximately 30 minutes, 00:16–00:46 on 17 October 2026 (Asia/Colombo), separate from the implementation estimates. Timings are approximate; commit dates were not rewritten.
