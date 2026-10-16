@@ -14,6 +14,21 @@ namespace SupportDesk.Presentation.Controllers;
 [Produces("application/json")]
 public sealed class TicketsController : ControllerBase
 {
+    [HttpPost("{id:int}/escalate")]
+    public async Task<IActionResult> Escalate(int id, EscalateRequest request,
+        [FromServices] SupportDesk.Application.Abstractions.ITicketTriage triage, CancellationToken ct)
+    {
+        if (request.Reason?.Trim().Length is not (>= 5 and <= 500) || string.IsNullOrWhiteSpace(request.EscalatedBy) || request.EscalatedBy.Length > 100)
+            return BadRequest(new ProblemDetails { Detail = "Reason must be 5–500 characters and actor 1–100 characters." });
+        return Ok(await triage.EscalateAsync(id, request.Reason.Trim(), request.EscalatedBy, ct));
+    }
+
+    [HttpGet("{id:int}/escalations")]
+    public Task<IReadOnlyList<SupportDesk.Domain.Aggregates.Tickets.TicketEscalation>> History(int id,
+        [FromServices] SupportDesk.Application.Abstractions.ITicketTriage triage, CancellationToken ct) => triage.HistoryAsync(id, ct);
+
+    public sealed record EscalateRequest(string? Reason, string? EscalatedBy);
+
     /// <summary>Searches tickets with filters, sorting and paging.</summary>
     [HttpGet]
     public Task<PagedResult<TicketListItemDto>> Search(

@@ -14,7 +14,7 @@ namespace SupportDesk.Infrastructure.Queries;
 /// Ticket reads. Projected in the database and never tracked. Aggregates hold only each
 /// other's ids, so the customer, category and agent labels are joined in here, on the read side.
 /// </summary>
-public sealed class TicketQueries(SupportDbContext db, IClock clock) : ITicketQueries
+public sealed class TicketQueries(SupportDbContext db, IClock clock, SlaSettings settings) : ITicketQueries
 {
     /// <remarks>
     /// Sorts and pages every ticket. The filter values bound into <paramref name="query"/>
@@ -46,7 +46,7 @@ public sealed class TicketQueries(SupportDbContext db, IClock clock) : ITicketQu
                 UpdatedAtUtc = x.Ticket.UpdatedAtUtc,
                 DueAtUtc = x.Ticket.DueAtUtc,
                 ResolvedAtUtc = x.Ticket.ResolvedAtUtc,
-                SlaStatus = SlaEvaluator.Evaluate(x.Ticket.DueAtUtc, x.Ticket.ResolvedAtUtc, now)
+                SlaStatus = SlaEvaluator.Evaluate(x.Ticket.DueAtUtc, x.Ticket.ResolvedAtUtc, now, x.Ticket.SlaStartedAtUtc ?? x.Ticket.CreatedAtUtc, settings.AtRiskThresholdPercent)
             })
             .ToListAsync(ct);
 
@@ -75,7 +75,7 @@ public sealed class TicketQueries(SupportDbContext db, IClock clock) : ITicketQu
                 UpdatedAtUtc = x.Ticket.UpdatedAtUtc,
                 DueAtUtc = x.Ticket.DueAtUtc,
                 ResolvedAtUtc = x.Ticket.ResolvedAtUtc,
-                SlaStatus = SlaEvaluator.Evaluate(x.Ticket.DueAtUtc, x.Ticket.ResolvedAtUtc, now)
+                SlaStatus = SlaEvaluator.Evaluate(x.Ticket.DueAtUtc, x.Ticket.ResolvedAtUtc, now, x.Ticket.SlaStartedAtUtc ?? x.Ticket.CreatedAtUtc, settings.AtRiskThresholdPercent)
             })
             .FirstOrDefaultAsync(ct);
     }
@@ -102,7 +102,7 @@ public sealed class TicketQueries(SupportDbContext db, IClock clock) : ITicketQu
                 UpdatedAtUtc = x.Ticket.UpdatedAtUtc,
                 DueAtUtc = x.Ticket.DueAtUtc,
                 ResolvedAtUtc = x.Ticket.ResolvedAtUtc,
-                SlaStatus = SlaEvaluator.Evaluate(x.Ticket.DueAtUtc, x.Ticket.ResolvedAtUtc, now)
+                SlaStatus = SlaEvaluator.Evaluate(x.Ticket.DueAtUtc, x.Ticket.ResolvedAtUtc, now, x.Ticket.SlaStartedAtUtc ?? x.Ticket.CreatedAtUtc, settings.AtRiskThresholdPercent)
             })
             .ToListAsync(ct);
     }
@@ -117,7 +117,7 @@ public sealed class TicketQueries(SupportDbContext db, IClock clock) : ITicketQu
         from agent in db.Set<Agent>().Where(a => a.Id == ticket.AssignedAgentId).DefaultIfEmpty()
         select new TicketWithLabels { Ticket = ticket, Customer = customer, Category = category, Agent = agent };
 
-    private static IQueryable<TicketWithLabels> ApplyFilters(IQueryable<TicketWithLabels> source, TicketQuery query)
+    private IQueryable<TicketWithLabels> ApplyFilters(IQueryable<TicketWithLabels> source, TicketQuery query)
     {
         if (query.Status is { } status) source = source.Where(x => x.Ticket.Status == status);
         if (query.Priority is { } priority) source = source.Where(x => x.Ticket.Priority == priority);
@@ -130,6 +130,17 @@ public sealed class TicketQueries(SupportDbContext db, IClock clock) : ITicketQu
             var search = query.Search.Trim();
             source = source.Where(x => x.Ticket.Title.Contains(search)
                 || x.Ticket.Reference.Contains(search) || x.Customer.Name.Contains(search));
+        }
+        if (query.SlaStatus is { } slaStatus)
+        {
+            var now = clock.UtcNow;
+            var fraction = settings.AtRiskThresholdPercent / 100;
+            // SQL Server DATEADD/DATEDIFF; status is derived before count and paging.
+            source = source.Where(x => (x.Ticket.DueAtUtc == null ? SlaStatus.NotApplicable
+                : x.Ticket.ResolvedAtUtc != null ? (x.Ticket.ResolvedAtUtc <= x.Ticket.DueAtUtc ? SlaStatus.Met : SlaStatus.Breached)
+                : now > x.Ticket.DueAtUtc ? SlaStatus.Breached
+                : now >= x.Ticket.DueAtUtc.Value.AddMilliseconds(-EF.Functions.DateDiffMillisecond(x.Ticket.SlaStartedAtUtc ?? x.Ticket.CreatedAtUtc, x.Ticket.DueAtUtc.Value) * fraction)
+                    ? SlaStatus.AtRisk : SlaStatus.WithinSla) == slaStatus);
         }
         return source;
     }

@@ -3,6 +3,7 @@ import { formatDateTime } from '../../../lib/format';
 import type { SlaStatus } from '../../../types/api';
 
 const labels: Partial<Record<SlaStatus, { text: string; tone: BadgeTone }>> = {
+  AtRisk: { text: 'At risk', tone: 'warning' },
   Met: { text: 'Met', tone: 'success' },
   Breached: { text: 'Breached', tone: 'danger' },
   WithinSla: { text: 'Within SLA', tone: 'info' },

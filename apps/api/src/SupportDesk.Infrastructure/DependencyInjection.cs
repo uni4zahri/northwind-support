@@ -41,6 +41,14 @@ public static class DependencyInjection
         services.AddScoped<IAgentQueries, AgentQueries>();
         services.AddScoped<ICategoryQueries, CategoryQueries>();
 
+        var sla = new SupportDesk.Domain.Aggregates.Tickets.SlaSettings();
+        configuration.GetSection("Sla").Bind(sla);
+        if (sla.MinimumWindowHours <= 0 || sla.PremiumCustomerMultiplier <= 0 || sla.AtRiskThresholdPercent < 0 || sla.AtRiskThresholdPercent > 100
+            || Enum.GetValues<SupportDesk.Domain.Aggregates.Tickets.TicketPriority>().Any(p => !sla.BaseWindowHours.TryGetValue(p, out var h) || h <= 0))
+            throw new InvalidOperationException("Invalid SLA configuration.");
+        services.AddSingleton(sla);
+        services.AddSingleton<SupportDesk.Domain.Aggregates.Tickets.TriagePolicy>();
+        services.AddScoped<ITicketTriage, TicketTriage>();
         services.AddScoped<SupportDbSeeder>();
 
         return services;

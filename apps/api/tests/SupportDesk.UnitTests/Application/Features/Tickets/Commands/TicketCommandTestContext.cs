@@ -48,7 +48,7 @@ internal sealed class TicketCommandTestContext
 
         RaiseTicket = new RaiseTicketCommandHandler(
             Tickets.Object, Customers.Object, Categories.Object, UnitOfWork.Object, Clock, getTicket,
-            NullLogger<RaiseTicketCommandHandler>.Instance);
+            NullLogger<RaiseTicketCommandHandler>.Instance, Mock.Of<ITicketTriage>());
 
         ChangeTicketStatus = new ChangeTicketStatusCommandHandler(Tickets.Object, UnitOfWork.Object, Clock, getTicket);
 

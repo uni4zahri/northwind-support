@@ -10,6 +10,14 @@ namespace SupportDesk.Infrastructure.Data;
 /// </summary>
 public class SupportDbContext(DbContextOptions<SupportDbContext> options) : DbContext(options), IUnitOfWork
 {
+    public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+    {
+        if (ChangeTracker.Entries<SupportDesk.Domain.Aggregates.Tickets.TicketEscalation>()
+            .Any(e => e.State is EntityState.Modified or EntityState.Deleted))
+            throw new InvalidOperationException("Escalation history is append-only.");
+        return base.SaveChangesAsync(cancellationToken);
+    }
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(SupportDbContext).Assembly);

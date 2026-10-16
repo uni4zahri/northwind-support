@@ -65,6 +65,7 @@ export interface TicketListItem {
 }
 
 export interface TicketDetail {
+  triage?: { priorityReason: string; slaWindowReason: string; assignmentReason: string };
   id: number;
   reference: string;
   title: string;
@@ -84,6 +85,7 @@ export interface TicketDetail {
 /** Everything the ticket list screen can narrow the results by. */
 export interface TicketFilters {
   search: string;
+  slaStatus?: SlaStatus;
   status?: TicketStatus;
   priority?: TicketPriority;
   categoryId?: number;

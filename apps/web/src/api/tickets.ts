@@ -25,6 +25,7 @@ function buildQuery(filters: TicketFilters): string {
   append('pageSize', filters.pageSize);
   append('search', filters.search.trim());
   append('status', filters.status);
+  append('slaStatus', filters.slaStatus);
   append('priority', filters.priority);
   append('categoryId', filters.categoryId);
   append('customerId', filters.customerId);
@@ -36,7 +37,13 @@ function buildQuery(filters: TicketFilters): string {
   return params.toString();
 }
 
+export interface Escalation {
+  id: number; fromPriority: string; toPriority: string; fromAgentId: number | null; toAgentId: number | null;
+  fromDueAtUtc: string | null; toDueAtUtc: string | null; reason: string; escalatedBy: string; escalatedAtUtc: string;
+}
 export const ticketsApi = {
+  history: (id: number) => request<Escalation[]>(`/tickets/${id}/escalations`),
+  escalate: (id: number, reason: string, escalatedBy: string) => request<{ ticket: TicketDetail; escalation: Escalation }>(`/tickets/${id}/escalate`, { method: 'POST', body: JSON.stringify({ reason, escalatedBy }) }),
   getTickets: (filters: TicketFilters) =>
     request<PagedResult<TicketListItem>>(`/tickets?${buildQuery(filters)}`),
 

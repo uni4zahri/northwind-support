@@ -43,6 +43,21 @@ public sealed class Ticket : AggregateRoot
     /// <summary>When the team has committed to responding by. Null when no SLA applies.</summary>
     public DateTime? DueAtUtc { get; private set; }
 
+    public DateTime? SlaStartedAtUtc { get; private set; }
+
+    public void ApplyTriage(TicketPriority priority, int? agentId, DateTime due, DateTime now)
+    {
+        Priority = priority; AssignedAgentId = agentId; DueAtUtc = due;
+        SlaStartedAtUtc = now; UpdatedAtUtc = now;
+    }
+
+    public void EscalatePriority()
+    {
+        if (!IsOpen) throw new BusinessRuleViolationException($"{Status} tickets cannot be escalated.");
+        if (Priority == TicketPriority.Critical) throw new BusinessRuleViolationException("Critical tickets cannot be escalated.");
+        Priority = (TicketPriority)((int)Priority + 1);
+    }
+
     public DateTime? ResolvedAtUtc { get; private set; }
 
     /// <summary>True while the ticket still needs work from an agent.</summary>

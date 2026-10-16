@@ -26,7 +26,7 @@ public sealed class TicketFilteringTests
         db.AddRange(Ticket.Raise("TCK-0001", "First", "First issue", customer.Id, category.Id, TicketPriority.High, FixedClock.DefaultNow),
             Ticket.Raise("TCK-0002", "Second", "Second issue", customer.Id, category.Id, TicketPriority.Low, FixedClock.DefaultNow));
         await db.SaveChangesAsync();
-        var queries = new TicketQueries(db, new FixedClock());
+        var queries = new TicketQueries(db, new FixedClock(), new SlaSettings());
         var priority = await queries.GetPagedAsync(new TicketQuery { Priority = TicketPriority.High }, default);
         Assert.Equal(1, priority.TotalCount);
         Assert.Equal(TicketPriority.High, Assert.Single(priority.Items).Priority);
