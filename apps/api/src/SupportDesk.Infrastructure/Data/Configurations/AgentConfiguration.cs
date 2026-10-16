@@ -11,6 +11,8 @@ public sealed class AgentConfiguration : IEntityTypeConfiguration<Agent>
         builder.ToTable("Agents", t =>
             t.HasCheckConstraint("CK_Agents_MaxOpenTickets", "[MaxOpenTickets] > 0"));
 
+        builder.Property(a => a.PasswordHash).HasMaxLength(1024);
+
         builder.HasKey(a => a.Id);
 
         builder.Property(a => a.FullName).HasMaxLength(200).IsRequired();

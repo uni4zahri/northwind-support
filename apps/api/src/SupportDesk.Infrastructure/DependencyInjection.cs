@@ -49,6 +49,8 @@ public static class DependencyInjection
         services.AddSingleton(sla);
         services.AddSingleton<SupportDesk.Domain.Aggregates.Tickets.TriagePolicy>();
         services.AddScoped<ITicketTriage, TicketTriage>();
+        services.AddScoped<Microsoft.AspNetCore.Identity.IPasswordHasher<SupportDesk.Domain.Aggregates.Agents.Agent>, Microsoft.AspNetCore.Identity.PasswordHasher<SupportDesk.Domain.Aggregates.Agents.Agent>>();
+        services.AddScoped<IAgentCredentials, AgentCredentials>();
         services.AddScoped<SupportDbSeeder>();
 
         return services;

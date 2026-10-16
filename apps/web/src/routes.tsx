@@ -1,4 +1,6 @@
 import { createBrowserRouter, Navigate } from 'react-router-dom';
+import { LoginPage } from './auth/LoginPage';
+import { Protected } from './auth/Protected';
 import { App } from './App';
 import { NotFoundPage } from './features/NotFoundPage';
 import { CustomerDetailPage } from './features/customers/CustomerDetailPage';
@@ -8,9 +10,10 @@ import { TicketDetailPage } from './features/tickets/TicketDetailPage';
 import { TicketListPage } from './features/tickets/TicketListPage';
 
 export const router = createBrowserRouter([
+  { path: "/login", element: <LoginPage /> },
   {
     path: '/',
-    element: <App />,
+    element: <Protected><App /></Protected>,
     children: [
       { index: true, element: <Navigate to="/tickets" replace /> },
       { path: 'tickets', element: <TicketListPage /> },

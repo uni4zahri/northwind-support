@@ -1,3 +1,4 @@
+import { readSession, saveSession } from '../auth/session';
 import type { ProblemDetails } from '../types/api';
 
 /**
@@ -34,9 +35,12 @@ export async function request<T>(path: string, init?: RequestInit): Promise<T> {
     ...init,
     headers: {
       'Content-Type': 'application/json',
+      ...(readSession() ? { Authorization: `Bearer ${readSession()!.token}` } : {}),
       ...(init?.headers ?? {}),
     },
   });
+
+  if (response.status === 401) saveSession(null);
 
   if (!response.ok) {
     const problem = await readProblem(response);

@@ -11,7 +11,6 @@ const ticket: TicketDetail = { ...ticketListItem(), description: 'Problem', cust
 beforeEach(() => { vi.clearAllMocks(); vi.mocked(ticketsApi.history).mockResolvedValue([]); });
 it('blocks a short reason before calling the API', async () => {
   render(<EscalationPanel ticket={ticket} onUpdated={vi.fn()} />);
-  fireEvent.change(screen.getByLabelText(/Your name/), { target: { value: 'Alex' } });
   fireEvent.change(screen.getByLabelText(/Reason/), { target: { value: 'bad' } });
   fireEvent.click(screen.getByRole('button', { name: 'Escalate ticket' }));
   expect(await screen.findByRole('alert')).toHaveTextContent('5–500');
@@ -21,7 +20,6 @@ it('displays conflict and leaves the ticket unchanged', async () => {
   vi.mocked(ticketsApi.escalate).mockRejectedValue(new ApiError(409, 'Critical tickets cannot be escalated.'));
   const updated = vi.fn();
   render(<EscalationPanel ticket={ticket} onUpdated={updated} />);
-  fireEvent.change(screen.getByLabelText(/Your name/), { target: { value: 'Alex' } });
   fireEvent.change(screen.getByLabelText(/Reason/), { target: { value: 'Customer impact increased' } });
   fireEvent.click(screen.getByRole('button', { name: 'Escalate ticket' }));
   await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Critical'));

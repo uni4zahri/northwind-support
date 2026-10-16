@@ -29,3 +29,9 @@ Codex generated implementation and tests, inspected source and test output, and 
 ## Time accounting
 
 Task 1 involved approximately 10–15 minutes of active AI-assisted work across the initial sessions. Task 2 and later tasks are still in progress. These are rough observed working-time estimates, not a claim about the candidate's personal effort; connection waits, overnight pauses and environment restoration are excluded.
+
+## Task 3 — authentication
+
+Credentials live on Agent because the assignment has a single account type and excludes registration, roles and external identity. A separate users table adds no useful distinction here. Store only Identity PasswordHasher output (salted PBKDF2); never store the fixture password as a database value. Seed missing hashes on existing development databases as well as fresh ones. Inactive agents cannot log in. Email matching trims whitespace and ignores case; failures share one message.
+
+JWT validation checks signature, algorithm, issuer, audience and expiration with zero clock skew. A fallback policy protects every controller except explicitly anonymous login; Swagger remains open in Development. Escalation actor is the stable numeric agent ID from `sub`, so renaming an agent does not corrupt history attribution and supplied actor fields have no effect. Tokens last 60 minutes. Session storage provides tab-scoped persistence; logout and 401 clear it. A server token revocation mechanism and hardened cookie-based browser sessions would be production considerations, outside this assessment.

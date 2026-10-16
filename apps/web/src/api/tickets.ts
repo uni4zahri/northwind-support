@@ -43,7 +43,7 @@ export interface Escalation {
 }
 export const ticketsApi = {
   history: (id: number) => request<Escalation[]>(`/tickets/${id}/escalations`),
-  escalate: (id: number, reason: string, escalatedBy: string) => request<{ ticket: TicketDetail; escalation: Escalation }>(`/tickets/${id}/escalate`, { method: 'POST', body: JSON.stringify({ reason, escalatedBy }) }),
+  escalate: (id: number, reason: string) => request<{ ticket: TicketDetail; escalation: Escalation }>(`/tickets/${id}/escalate`, { method: 'POST', body: JSON.stringify({ reason }) }),
   getTickets: (filters: TicketFilters) =>
     request<PagedResult<TicketListItem>>(`/tickets?${buildQuery(filters)}`),
 
