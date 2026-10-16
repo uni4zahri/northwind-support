@@ -1,7 +1,7 @@
 {
   "name": "northwind-support-desk",
   "private": true,
-  "description": "Support ticket management system — .NET API and React web client in one repository",
+  "description": "Support ticket management system \u2014 .NET API and React web client in one repository",
   "workspaces": [
     "apps/web"
   ],
@@ -9,7 +9,7 @@
     "db:up": "docker compose up -d sqlserver",
     "db:down": "docker compose down",
     "db:reset": "docker compose down -v && docker compose up -d sqlserver",
-    "api": "dotnet run --project apps/api/src/SupportDesk.Presentation",
+    "api": "node scripts/run-api.mjs",
     "web": "npm run dev --workspace apps/web",
     "build": "dotnet build && npm run build --workspace apps/web",
     "test": "dotnet test && npm run test --workspace apps/web",
@@ -18,7 +18,8 @@
     "format:check": "dotnet format --verify-no-changes",
     "typecheck": "npm run typecheck --workspace apps/web",
     "ef": "dotnet tool restore && dotnet ef --project apps/api/src/SupportDesk.Infrastructure --startup-project apps/api/src/SupportDesk.Presentation",
-    "db:migrate": "dotnet tool restore && dotnet ef database update --project apps/api/src/SupportDesk.Infrastructure --startup-project apps/api/src/SupportDesk.Presentation"
+    "db:migrate": "dotnet tool restore && dotnet ef database update --project apps/api/src/SupportDesk.Infrastructure --startup-project apps/api/src/SupportDesk.Presentation",
+    "setup": "node scripts/setup-dev.mjs"
   },
   "engines": {
     "node": ">=20"

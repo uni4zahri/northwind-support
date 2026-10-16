@@ -67,6 +67,7 @@ public sealed class AuthenticationTests
     public async Task ProtectedEndpointsRequireValidTokenAndMeReturnsUser()
     {
         using var factory = new Factory(); using var client = factory.CreateClient(); await factory.SeedAsync();
+        Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/health")).StatusCode);
         Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync("/api/agents")).StatusCode);
         var login = await client.PostAsJsonAsync("/api/auth/login", new { email = " ALEX@example.test ", password = "LocalTestPassword!" });
         login.EnsureSuccessStatusCode();

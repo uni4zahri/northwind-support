@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using System.Text.Json.Serialization;
 using SupportDesk.Application;
 using SupportDesk.Infrastructure;
@@ -70,6 +71,17 @@ app.UseCors(FrontendCorsPolicy);
 
 app.UseAuthentication();
 app.UseAuthorization();
+
+app.MapGet("/health", async (SupportDesk.Infrastructure.Data.SupportDbContext db, CancellationToken ct) =>
+{
+    try
+    {
+        return await db.Database.CanConnectAsync(ct)
+            ? Results.Ok(new { status = "Healthy" })
+            : Results.Json(new { status = "Unhealthy" }, statusCode: 503);
+    }
+    catch (Exception) { return Results.Json(new { status = "Unhealthy" }, statusCode: 503); }
+}).AllowAnonymous();
 
 app.MapControllers();
 
