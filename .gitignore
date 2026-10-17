@@ -44,3 +44,11 @@ secrets.json
 ## OS
 .DS_Store
 Thumbs.db
+
+## Local assessment transfer files and Python cache
+/northwind-support.bundle
+/northwind-final-check.zip
+/docker-verification-docs.patch
+/northwind-review-cleanup.patch
+__pycache__/
+*.pyc

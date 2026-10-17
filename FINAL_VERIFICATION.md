@@ -14,4 +14,4 @@ Playwright 1.64.1; Chromium 156.0.8078.4; real React UI and live SQL-backed API 
 
 Development test ticket retained: `TCK-1003`. Each rerun creates one labelled ticket and one escalation. Existing tickets and volumes are not deleted.
 
-These are automated Chromium smoke checks, not a claim of manual visual, accessibility, cross-browser or exhaustive business-rule testing. Earlier backend tests and Docker measurements are documented in README and APPROACH. Candidate understanding/interview preparation cannot be verified by this script.
+These are automated Chromium smoke checks, not a claim of manual visual, accessibility, cross-browser or exhaustive business-rule testing. Earlier backend tests and Docker measurements are documented in README and APPROACH. The verification helper writes this report without committing or pushing changes.

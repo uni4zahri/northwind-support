@@ -33,8 +33,7 @@ public sealed class RaiseTicketCommandHandler(
             throw new NotFoundException("Category", request.CategoryId);
         }
 
-        // The response window is still worked out by hand by the team lead, so a new ticket
-        // starts with no due date and no owner.
+        // Raise the aggregate, then apply the shared priority, SLA and assignment policy.
         var ticket = Ticket.Raise(
             await tickets.NextReferenceAsync(ct),
             request.Title,

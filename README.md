@@ -1,87 +1,63 @@
-# Northwind Support Desk — assessment implementation
+# Northwind Support Desk
 
-.NET 10 API, React 19/TypeScript and SQL Server. Requirements: [ASSIGNMENT_CANDIDATE.md](ASSIGNMENT_CANDIDATE.md). Detailed reasoning: [APPROACH.md](APPROACH.md).
+.NET 10 Web API, React 19/TypeScript and SQL Server. Implements all four tasks in [the assessment](ASSIGNMENT_CANDIDATE.md), with separate commits for the filter defect and database filtering.
 
-## Delivery status
+## Run the application
 
-| Task | Status | Rough active AI-assisted time* |
-|---|---|---|
-| 1: defect and SQL filters | Implemented and tested; separate commits | 15 minutes |
-| 2: triage, escalation, SLA | Implemented and tested; migration included | 25 minutes |
-| 3: authentication | Implemented and tested; migration included | 15 minutes |
-| 4: Docker | Implemented; live Docker checks passed in Codespaces | 15 minutes |
-
-*Approximate implementation/testing time, not the candidate's personal effort. Excludes overnight pauses, account setup and download waits. Candidate review/rehearsal is still needed. Implementation commits through `9c26209` were pushed to [the GitHub fork](https://github.com/uni4zahri/northwind-support) from Codespaces. Additional guided Docker verification and troubleshooting took approximately 30 minutes (00:16–00:46, 17 October 2026, Asia/Colombo); this is separate from the implementation estimates.
-
-## Run locally
-
-Native development requires Node 22+, .NET SDK 10 and Docker with Compose (Linux containers). The Docker backend can also run entirely in GitHub Codespaces without installing Docker on the physical PC. From the repository root:
+Requirements: Node matching [.nvmrc](.nvmrc), Docker with Compose, and .NET SDK 10 for native API development or backend tests. GitHub Codespaces can run the Docker backend without installing Docker on your physical computer.
 
 ```sh
 npm ci
-npm run setup                 # creates ignored .env and a random JWT key
-npm run db:up
-npm run api                   # terminal 1; reads .env, runs HTTP profile
-npm run web                   # terminal 2
-```
-
-Allow SQL Server to become healthy before starting the API. Web: http://localhost:5173; native API: http://localhost:5043; Swagger: http://localhost:5043/swagger. In Development startup applies migrations and seeds demo data. Existing development databases also receive missing password hashes. `npm run setup` preserves an existing signing key. Never commit `.env`.
-
-**Development login:** `alex.turner@northwind-support.example` / `Northwind_Local_Only_2026!`. All seeded active agents share this deliberately local fixture password; inactive Yuki cannot sign in. This is not a production credential.
-
-For Docker backend, after `npm run setup`:
-
-```sh
-docker compose up --build
-# another terminal, POSIX shell:
+npm run setup                   # creates ignored .env; generates/preserves JWT signing key
+docker compose up --build -d
+# In another terminal:
 VITE_API_PROXY_TARGET=http://localhost:5080 npm run web
 ```
 
-PowerShell equivalent: `$env:VITE_API_PROXY_TARGET='http://localhost:5080'; npm run web`. API: http://localhost:5080; health: http://localhost:5080/health. Compose injects the connection string using service name `sqlserver`, signing key, environment, token settings and SLA settings. Overrides are listed in `.env.example`. Native API SLA settings use `Sla` in `appsettings.Development.json`, or equivalent `Sla__...` environment variables. Restart after configuration changes. Missing/short JWT keys fail startup clearly.
+Open http://localhost:5173. API: http://localhost:5080; Swagger: http://localhost:5080/swagger; health: http://localhost:5080/health. In Codespaces, forward port 5173 and use `VITE_API_PROXY_TARGET=http://localhost:5080 npm run dev --workspace apps/web -- --host 0.0.0.0`. PowerShell: `$env:VITE_API_PROXY_TARGET='http://localhost:5080'; npm run web`.
 
-## Design decisions and behaviour
+**Development login:** `alex.turner@northwind-support.example` / `Northwind_Local_Only_2026!`. Active seeded agents share this local fixture password; inactive agents cannot sign in. Development startup applies migrations and seeds demo data.
 
-- **DEFECT-117:** the effect watched search/page/page size but omitted other filters. Debounce search alone; use the complete serialized query as the dependency. Ignore obsolete responses. Rejected manual dependency enumeration because a new filter could reintroduce the defect. The regression test fails on the original code and passes on the fix.
-- **Query composition:** exact matches and trimmed title/reference/customer search become SQL `WHERE` clauses before count, sort and page. Filters combine with AND; named-agent plus unassigned-only returns zero. Case sensitivity follows database collation. Add another predicate in `ApplyFilters`; the SLA addition follows that pattern. SQLite tests execute relational filtering; a SQL Server `ToQueryString` test verifies SLA `CASE`/`DATEADD`/`DATEDIFF` translation. Live SQL Server migrations, seeding, login and authenticated ticket retrieval were subsequently verified in Codespaces; exhaustive live-provider filter and escalation scenarios were not rerun.
-- **Pure policy + orchestration:** `TriagePolicy` shares priority/window/eligibility logic between create and escalation; `TicketTriage` handles database access. Rejected rules in controllers or duplicated create/escalate logic. Category flags control forced Critical priority and specialist requirements. Fewest open tickets wins; lowest agent ID breaks ties. No eligible agent yields a normal unassigned ticket with a reason.
-- **Capacity assumption:** exclude the current ticket when assessing an existing owner's capacity. Escalation raises exactly one level and restarts the window from the injected clock; Critical/Resolved/Closed reject with 409. A stored `SlaStartedAtUtc` preserves the restarted window; old seed rows use creation time. SLA status is derived, including inclusive at-risk and on-time-resolution boundaries.
-- **Persistence/unit of work:** escalation and history save together. History has private setters, no editing endpoint and an async save guard. Its `(TicketId, EscalatedAtUtc)` index supports per-ticket newest-first history; agent FK indexes support referential checks. Restrict deletion preserves references. New migrations add history/SLA start and a nullable password-hash column; no SLA status column.
-- **Authentication:** Agent owns its credential because this app has one account type; rejected a redundant Users table. Identity PasswordHasher provides salted PBKDF2. JWTs use HS256, configured key/issuer/audience, 60-minute default expiry and zero clock skew. Central fallback authorization protects controllers; login, Development Swagger and health are open. History actor comes only from token `sub` (stable agent ID), never request input.
-- **Browser session:** `sessionStorage` survives refresh within a tab; logout/401 clears it and protected routes redirect to login, preserving the destination. It is accessible to JavaScript, so XSS remains a risk. Production should consider secure HttpOnly cookies/BFF, HTTPS and a reviewed session lifecycle.
+For native API development, start SQL with `npm run db:up`, wait for database health, then run `npm run api` and `npm run web` in separate terminals. The native API uses port 5043, matching the default frontend proxy.
 
-## Verification and Docker results
+Configuration is documented in [.env.example](.env.example): database password, JWT signing key/issuer/audience/lifetime, environment and SLA settings. Compose supplies the database host as `sqlserver`. Never commit `.env`. Missing or short signing keys stop startup. Native SLA configuration uses the existing `Sla` section or equivalent `Sla__...` environment variables.
+
+## Implementation and decisions
+
+- **Task 1 — defect and filtering.** DEFECT-117 came from missing filter dependencies in the list effect. Only search is debounced; the complete serialized query drives requests, and obsolete responses are ignored. A regression test failed on the original hook and passed after the fix. A manually maintained dependency list was rejected because new filters could repeat the defect. Exact matches and trimmed title/reference/customer search combine with AND in SQL before count, ordering and paging. A new filter adds a predicate in `ApplyFilters`; no client-side filtering is used. SQLite tests execute relational queries; SQL Server translation tests inspect SLA SQL, and live browser checks exercise combined filters.
+- **Task 2 — triage and escalation.** A pure `TriagePolicy` holds shared rules; `TicketTriage` orchestrates persistence. Rules in controllers or duplicate create/escalate logic were rejected. Requested priority defaults to Medium; category flags force Critical or require specialists. Default windows are Low 72h, Medium 24h, High 8h and Critical 4h; Premium halves the window with a 1h floor. Settings are configurable. Eligible active agents below capacity are ordered by open workload, then agent ID. No eligible agent produces an unassigned ticket with a reason. Escalation raises priority once, restarts the SLA window and keeps an eligible owner or reassigns. Critical/Resolved/Closed tickets reject escalation. SLA state is derived using an injected clock, including the inclusive at-risk threshold.
+- **Database and assumptions.** Migrations add escalation history, nullable credential hashes and `SlaStartedAtUtc`; SLA status is not stored. Ticket and history changes save atomically. History has private setters, no edit endpoint and an EF update/delete guard. The `(TicketId, EscalatedAtUtc)` index supports newest-first ticket history; agent FK indexes support referential checks, with restricted deletion. An owner's capacity excludes the ticket being escalated. Legacy SLA windows fall back to creation time; search case sensitivity follows database collation. Named-agent plus unassigned-only filters intentionally return no matches.
+- **Task 3 — authentication.** Credentials stay on Agent because there is one account type; a separate Users table adds no useful distinction. Identity PasswordHasher provides salted PBKDF2. HS256 JWTs validate key, issuer, audience and expiry; lifetime defaults to 60 minutes with zero clock skew. Central fallback authorization protects controllers; login, Development Swagger and health are open. Escalation actor comes from token `sub`, never the request body. The browser stores the session in `sessionStorage`; logout/401 clears it. This survives tab refresh but remains exposed to XSS.
+- **Task 4 — Docker.** Project-first restore enables caching; the SDK stage publishes into an ASP.NET runtime image running as non-root on port 8080. Development settings and secrets are excluded from the build context. Compose publishes API port 5080 on localhost and waits for SQL health. Production should use a separate, controlled migration step and restricted runtime database privileges, avoiding startup migration races and demo seeding.
+
+See [APPROACH.md](APPROACH.md) for trade-offs, scaling considerations and troubleshooting.
+
+## Verification
 
 ```sh
 npm test
 npm run typecheck
 npm run lint
 npm run build
+npm audit
 ```
 
-Verified: 48 backend tests (44 behavioural/unit + 4 architecture/model), 13 frontend tests, lint/type checks, React production build and API Release publish. Tests cover priority/tier/floor, specialists/capacity/ties, owner retention/unassignment, escalation history/rejections, SLA boundaries, filtered paging, credential hashing, generic login failures, JWT protection, browser 401 and validation. API tests use TestServer and SQLite; no running database is required. For restricted build environments: `dotnet test --disable-build-servers -m:1 -p:UseSharedCompilation=false`.
+Verified: **48 backend tests** (44 behavioural/unit and 4 architecture/model), **13 frontend tests**, lint, type checking, frontend production build and API publish. Coverage includes SLA boundaries/windows, eligibility/capacity/ties, escalation/history/rejections, relational filtering, real JWT middleware, hashing, browser authentication and validation. Automated API tests use TestServer/SQLite; they are distinct from live SQL Server checks. The source-map-js update to 1.2.2 was validated with zero npm audit findings at verification time.
 
-Dockerfile uses cached project-first restore, SDK build and ASP.NET-only runtime, non-root `$APP_UID`, HTTP 8080, and excludes `.env`, development settings, web files and build output. Compose binds API port 5080 to localhost and waits for SQL health. `/health` reports database reachability (200/503) without authentication; it is tested through TestServer.
-
-Live checks completed in GitHub Codespaces on 16 October 2026 UTC (17 October, Asia/Colombo), using Docker 29.8.0-1 and Compose v5.5.1:
-
-| Required check | Observed result |
+| Docker check | Recorded result |
 |---|---|
-| Empty-volume migrations/seed | New named test volume created; startup seeded 5 categories, 6 customers, 6 agents and 40 tickets; health returned HTTP 200. Original volume restored afterward and health rechecked. |
-| Restore cache | Temporary comment in Program.cs: restore CACHED, source COPY and publish reran; exit 0. Source restored and original image rebuilt. |
-| Non-root user | `uid=1654(app) gid=1654(app)` |
-| Runtime vs SDK image size | API 455,430,070 bytes; SDK 1,303,841,725 bytes; API approximately 65.1% smaller (local Docker image inspect measurements). |
-| Authentication smoke checks | Anonymous tickets: 401; login, `/api/auth/me`, authenticated `/api/tickets`: 200. |
+| Empty-volume startup | Separate new named volume; migrations/seed completed, 40 tickets seeded and health HTTP 200. Original volume restored afterward. |
+| Restore cache | Temporary C# comment reran source copy/publish; restore remained CACHED. Original source restored. |
+| Non-root identity | `uid=1654(app) gid=1654(app)` |
+| Image size | API 455,430,070 bytes; SDK 1,303,841,725 bytes — approximately 65.1% smaller. Measured before the later recovery rebuild. |
+| API authentication | Anonymous tickets 401; login, current-user lookup and authenticated tickets 200. |
 
-Codespaces troubleshooting: DNS resolved `sqlserver`, but cross-container TCP timed out. SQL could connect to its own network address. Legacy iptables had FORWARD policy DROP and rules only for docker0, while the current Docker rules used a separate bridge. A legacy DOCKER-USER ACCEPT rule scoped to both incoming and outgoing interfaces of the project bridge restored connectivity. This is an environment workaround, not an application requirement: inspect rules first, do not disable the firewall, and re-evaluate after network recreation because bridge names change. No firewall change was made on the physical PC. Data Protection key persistence/encryption warnings remain in Development logs; startup succeeds.
+[FINAL_VERIFICATION.md](FINAL_VERIFICATION.md) records successful live Chromium checks for creation, combined filters, escalation/history and logout. To rerun in Codespaces: `python3 scripts/final-check/finish.py`. It installs temporary browser tooling, creates one labelled demo ticket and updates the verification report; it does not commit or push. The inherited CI workflow has no recorded runs at this review; the results above were verified outside GitHub Actions.
 
-Production migrations should run once as a controlled deployment step, with a migration identity; application replicas should not race to migrate or have schema privileges. Demo seeding is Development-only.
+## AI use and limitations
 
-## AI use and known limitations
+Codex assisted implementation, tests, troubleshooting and documentation. The composable filtering approach was accepted; a manually enumerated dependency list was rejected. Generated JSX, a missing configuration-binder dependency and a test tracking conflict were corrected. Verification used the failing/passing regression, relational and HTTP tests, builds and live Docker/browser checks. Codex contributed across all four tasks.
 
-Codex assisted implementation, tests and documentation. Accepted composable filters; rejected a hard-coded hook dependency list. Verification caught an AI-generated JSX typo, missing binder dependency and a test tracking conflict, all corrected. Regression failure-before/pass-after and relational/HTTP tests validated generated work. See APPROACH for walkthrough guidance.
+Concurrent triage can overbook agents; concurrent escalation lacks optimistic locking. Production needs transactional allocation/concurrency tokens, reviewed session handling and appropriate indexes. History guards cannot prevent direct DBA edits; substring search and derived SLA filters may scan. Token revocation, timing equalization for unknown accounts and other production authentication features are not implemented. Registration/reset, roles, OAuth, refresh tokens, MFA, notifications and the optional SLA report are outside scope. Browser coverage is a Chromium smoke suite, not exhaustive visual, accessibility or cross-browser testing.
 
-Concurrent triage can overbook an agent; concurrent escalation lacks optimistic locking. At scale use transactional allocation/concurrency tokens, indexes and server-side candidate selection. History guards do not protect against direct DBA edits. Substring search is not a full-text index; SLA filtering may scan. No token revocation, timing equalization for missing accounts, registration/reset, roles, OAuth, refresh tokens, MFA, notifications, CI, caching or stretch report. These are deliberately outside scope. Automated Chromium smoke checks are recorded in FINAL_VERIFICATION.md; exhaustive live SQL Server business-rule scenarios and manual visual/cross-browser review remain outside that coverage.
-
-## Final automated browser verification
-
-See [FINAL_VERIFICATION.md](FINAL_VERIFICATION.md) for the latest successful live browser smoke checks and measured runner duration. The source-map-js lockfile uses patched version 1.2.2. Tests run with scripts/final-check/finish.py in Codespaces; each run retains a labelled demo ticket. Automated checks do not replace candidate review of the implementation.
+Approximate active AI-assisted implementation estimates: Task 1 15 min; Task 2 25 min; Task 3 15 min; Task 4/setup/docs 15 min. The first guided Docker verification session took about 30 min; later environment recovery and submission review are additional. These estimates are not a personal-effort timesheet. The final successful runner recorded 3.2 min, including installation waits.
