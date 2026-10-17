@@ -34,10 +34,14 @@ Development Data Protection key-storage warnings remain in logs. Production need
 
 ## AI workflow and review
 
-Codex generated implementation and tests and assisted troubleshooting/documentation. Composable query predicates were accepted; a manually maintained hook dependency list was rejected because new filters could recreate the original defect. Verification identified and corrected a generated JSX typo, missing binder dependency and test tracking conflict. Generated code was checked with regression failure-before/pass-after, relational and HTTP tests, builds, Docker checks and real Chromium flows.
+Development followed an AI-assisted collaborative workflow. Codex generated implementation and tests and supported troubleshooting and documentation. The candidate ran validation commands in Codespaces and reviewed the results with AI assistance. Composable query predicates were accepted; a manually maintained hook dependency list was rejected because new filters could recreate the original defect. Verification identified and corrected a generated JSX typo, missing binder dependency and test tracking conflict. Generated code was checked with regression failure-before/pass-after, relational and HTTP tests, builds, Docker checks and real Chromium flows.
 
 ## Limits and scaling
 
 Concurrent allocation/escalation still needs concurrency control. For large ticket volumes, review execution plans, add workload-appropriate indexes/full-text search and calculate candidate workloads in SQL instead of loading all agents. Security work beyond the assessment includes hardened sessions, revocation and generic-failure timing. No claim is made of production readiness or exhaustive cross-browser/accessibility testing.
 
-Implementation and initial verification estimates appear in README. The recorded 3.2-minute browser-run duration is elapsed execution time, not candidate effort; environment recovery, review and waiting time are separate.
+## Time accounting
+
+The candidate's approximate retrospective estimate is 30 hours overall: Task 1 5 hours, Task 2 11 hours, Task 3 6 hours and Task 4 8 hours. This includes implementation, learning, review, testing, documentation and environment troubleshooting, as reflected in the submission email. Individual task times were not precisely tracked. These overall effort estimates supersede the earlier narrow AI-assisted implementation estimates.
+
+The recorded 3.2-minute successful verification run is a measured execution duration within that workflow, not an additional personal-effort estimate.

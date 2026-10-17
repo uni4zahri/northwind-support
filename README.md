@@ -56,8 +56,20 @@ Verified: **48 backend tests** (44 behavioural/unit and 4 architecture/model), *
 
 ## AI use and limitations
 
-Codex assisted implementation, tests, troubleshooting and documentation. The composable filtering approach was accepted; a manually enumerated dependency list was rejected. Generated JSX, a missing configuration-binder dependency and a test tracking conflict were corrected. Verification used the failing/passing regression, relational and HTTP tests, builds and live Docker/browser checks. Codex contributed across all four tasks.
+Development followed an AI-assisted collaborative workflow. Codex supported implementation, test creation, troubleshooting and documentation across all four tasks; the candidate ran checks in Codespaces and reviewed their outputs with AI assistance. The composable filtering approach was accepted; a manually enumerated dependency list was rejected. Generated JSX, a missing configuration-binder dependency and a test tracking conflict were corrected. Verification used the failing/passing regression, relational and HTTP tests, builds and live Docker/browser checks.
 
 Concurrent triage can overbook agents; concurrent escalation lacks optimistic locking. Production needs transactional allocation/concurrency tokens, reviewed session handling and appropriate indexes. History guards cannot prevent direct DBA edits; substring search and derived SLA filters may scan. Token revocation, timing equalization for unknown accounts and other production authentication features are not implemented. Registration/reset, roles, OAuth, refresh tokens, MFA, notifications and the optional SLA report are outside scope. Browser coverage is a Chromium smoke suite, not exhaustive visual, accessibility or cross-browser testing.
 
-Approximate active AI-assisted implementation estimates: Task 1 15 min; Task 2 25 min; Task 3 15 min; Task 4/setup/docs 15 min. The first guided Docker verification session took about 30 min; later environment recovery and submission review are additional. These estimates are not a personal-effort timesheet. The final successful runner recorded 3.2 min, including installation waits.
+## Approximate time spent
+
+Approximately **30 hours overall**, estimated retrospectively across implementation, learning, review, testing, documentation and environment troubleshooting. The task allocation below is approximate, not a precisely tracked timesheet.
+
+| Task | Approximate effort |
+|---|---:|
+| Task 1 — Filter defect and server-side filtering | 5 hours |
+| Task 2 — Triage, escalation, history and SLA handling | 11 hours |
+| Task 3 — Authentication and protected routes | 6 hours |
+| Task 4 — Docker setup, troubleshooting and verification | 8 hours |
+| **Total** | **30 hours** |
+
+These candidate-reported overall effort estimates replace the earlier narrow AI-assisted implementation estimates and match the submission email. Automated execution durations are separate measurements within the workflow, not additional effort to add to this total: the final successful verification runner recorded 3.2 minutes, including installation waits.
