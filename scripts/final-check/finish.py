@@ -1,0 +1,163 @@
+#!/usr/bin/env python3
+"""Run from repository root in Codespaces. Stops on failure; never force-pushes."""
+import datetime
+import json
+import os
+from pathlib import Path
+import re
+import signal
+import subprocess
+import sys
+import tempfile
+import time
+import urllib.request
+
+ROOT = Path.cwd()
+START = time.monotonic()
+
+def run(args, capture=False, check=True, **kwargs):
+    print('\n>>> ' + ' '.join(map(str, args)), flush=True)
+    return subprocess.run(args, check=check, text=True, stdout=subprocess.PIPE if capture else None, **kwargs)
+
+def output(args):
+    return subprocess.check_output(args, text=True).strip()
+
+def require(condition, message):
+    if not condition:
+        raise RuntimeError(message)
+
+def healthy(url):
+    try:
+        with urllib.request.urlopen(url, timeout=3) as r:
+            return r.status == 200
+    except Exception:
+        return False
+
+def wait_health(url, seconds):
+    end = time.monotonic() + seconds
+    while time.monotonic() < end:
+        if healthy(url):
+            return True
+        time.sleep(2)
+    return False
+
+def main():
+    require(os.environ.get('CODESPACES') == 'true', 'Run this script inside GitHub Codespaces, not on your physical PC.')
+    require((ROOT / 'docker-compose.yml').exists(), 'Run from /workspaces/northwind-support.')
+    require(output(['git', 'branch', '--show-current']) == 'main', 'Expected branch main.')
+    origin = output(['git', 'remote', 'get-url', '--push', 'origin'])
+    require(origin.rstrip('/').removesuffix('.git') in ['https://github.com/uni4zahri/northwind-support', 'git@github.com:uni4zahri/northwind-support'], 'Unexpected origin; refusing to push.')
+    changed = set(output(['git', 'diff', '--name-only', 'HEAD']).splitlines())
+    allowed = {'package-lock.json', 'README.md', 'APPROACH.md', 'FINAL_VERIFICATION.md', 'SUBMISSION.md', 'scripts/final-check/finish.py', 'scripts/final-check/browser.cjs'}
+    require(changed <= allowed, 'Unrelated tracked edits exist; preserve them and review before running: ' + str(changed - allowed))
+    require(not output(['git', 'diff', '--cached', '--name-only']), 'Staged changes exist; unstage/review them first.')
+    run(['git', 'fetch', 'origin'])
+    require(subprocess.run(['git', 'merge-base', '--is-ancestor', 'origin/main', 'HEAD']).returncode == 0,
+            'Local branch is behind/diverged from origin/main. Stop and share git status; no history was rewritten.')
+    # Only the previously reviewed source-map-js lockfile change may already exist.
+    if 'package-lock.json' in changed:
+        before = json.loads(output(['git', 'show', 'HEAD:package-lock.json']))
+        after = json.loads((ROOT / 'package-lock.json').read_text())
+        for obj in (before, after):
+            obj['packages'].pop('node_modules/source-map-js', None)
+        require(before == after, 'Lockfile has changes beyond the reviewed source-map-js update.')
+    lock = json.loads((ROOT / 'package-lock.json').read_text())
+    require(lock['packages']['node_modules/source-map-js']['version'] == '1.2.2', 'Expected reviewed source-map-js 1.2.2 fix; share output before proceeding.')
+    run(['npm', 'ci'])
+    run(['npm', 'audit'])
+    run(['npm', 'run', 'test', '--workspace', 'apps/web', '--', '--run'])
+    run(['npm', 'run', 'typecheck'])
+    run(['npm', 'run', 'lint'])
+    run(['npm', 'run', 'build'])
+    # Preserve .env and all existing database volumes.
+    run(['npm', 'run', 'setup'])
+    run(['docker', 'compose', 'up', '-d'])
+    if not wait_health('http://127.0.0.1:5080/health', 20):
+        # Reapply only the previously diagnosed Codespaces workaround, scoped to this bridge.
+        networks = json.loads(output(['docker', 'inspect', 'supportdesk-sql']))[0]['NetworkSettings']['Networks']
+        require('northwind-support_default' in networks, 'Unexpected Docker network; no firewall rules changed.')
+        network = json.loads(output(['docker', 'network', 'inspect', 'northwind-support_default']))[0]
+        require(network['Driver'] == 'bridge', 'Expected Docker bridge driver.')
+        bridge = network.get('Options', {}).get('com.docker.network.bridge.name') or 'br-' + network['Id'][:12]
+        require(re.fullmatch(r'[a-zA-Z0-9_.-]+', bridge) is not None, 'Invalid bridge name.')
+        rules = run(['sudo', '-n', 'iptables-legacy', '-S', 'FORWARD'], capture=True)
+        require('-P FORWARD DROP' in rules.stdout, 'Health failed without the known legacy DROP problem. Share docker compose logs --tail=50 api.')
+        rule = ['DOCKER-USER', '-i', bridge, '-o', bridge, '-j', 'ACCEPT']
+        existing = run(['sudo', '-n', 'iptables-legacy', '-C', *rule], check=False)
+        if existing.returncode:
+            run(['sudo', '-n', 'iptables-legacy', '-I', *rule])
+        run(['docker', 'compose', 'restart', 'api'])
+        require(wait_health('http://127.0.0.1:5080/health', 120), 'API health still fails. Stop and share API logs.')
+    with tempfile.TemporaryDirectory(prefix='northwind-verification-') as temporary:
+        temp = Path(temporary)
+        run(['npm', 'install', '--prefix', str(temp), '--no-audit', '--no-fund', '@playwright/test'])
+        cli = temp / 'node_modules/playwright/cli.js'
+        run(['node', str(cli), 'install', '--with-deps', 'chromium'])
+        env = os.environ.copy()
+        env.update(VITE_API_PROXY_TARGET='http://127.0.0.1:5080', NORTHWIND_TOOLS=str(temp), NORTHWIND_RESULT=str(temp / 'result.json'))
+        with (temp / 'vite.log').open('w') as log:
+            server = subprocess.Popen(['npm', 'run', 'dev', '--workspace', 'apps/web', '--', '--host', '127.0.0.1', '--port', '5179', '--strictPort'], env=env, stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
+            try:
+                require(wait_health('http://127.0.0.1:5179', 30) and server.poll() is None, 'Dedicated Vite server failed. Ensure port 5179 is free.')
+                run(['node', 'scripts/final-check/browser.cjs'], env=env, timeout=240)
+                result = json.loads((temp / 'result.json').read_text())
+                require(result.get('passed') is True, 'Browser checks did not pass.')
+                playwright_version = json.loads((temp / 'node_modules/@playwright/test/package.json').read_text())['version']
+            finally:
+                if server.poll() is None:
+                    os.killpg(server.pid, signal.SIGTERM)
+                    server.wait(timeout=15)
+                print('Vite log tail:\n' + '\n'.join((temp / 'vite.log').read_text().splitlines()[-12:]))
+    duration = round((time.monotonic() - START) / 60, 1)
+    stamp = datetime.datetime.now(datetime.timezone.utc).isoformat()
+    report = '# Final automated verification\n\n'
+    report += f'Completed: {stamp}. Runner elapsed time: {duration} minutes (includes installation/download waits; not personal effort).\n\n'
+    report += f'Playwright {playwright_version}; Chromium {result["browser"]}; real React UI and live SQL-backed API in Codespaces. No mocked API responses.\n\n'
+    report += '- npm ci and npm audit: passed; zero reported vulnerabilities at run time.\n- Frontend tests, typecheck, lint, and combined backend/frontend build: passed.\n'
+    report += '\n'.join('- ' + item for item in result['checks']) + '\n\n'
+    report += f'Development test ticket retained: `{result["ticket"]}`. Each rerun creates one labelled ticket and one escalation. Existing tickets and volumes are not deleted.\n\n'
+    report += 'These are automated Chromium smoke checks, not a claim of manual visual, accessibility, cross-browser or exhaustive business-rule testing. Earlier backend tests and Docker measurements are documented in README and APPROACH. Candidate understanding/interview preparation cannot be verified by this script.\n'
+    (ROOT / 'FINAL_VERIFICATION.md').write_text(report)
+    appendix = '\n## Final automated browser verification\n\nSee [FINAL_VERIFICATION.md](FINAL_VERIFICATION.md) for the latest successful live browser smoke checks and measured runner duration. The source-map-js lockfile uses patched version 1.2.2. Tests run with scripts/final-check/finish.py in Codespaces; each run retains a labelled demo ticket. Automated checks do not replace candidate review of the implementation.\n'
+    for name in ['README.md', 'APPROACH.md']:
+        path = ROOT / name
+        content = path.read_text()
+        marker = '\n## Final automated browser verification\n'
+        if marker in content:
+            content = content.split(marker)[0]
+        content = content.replace('Full browser end-to-end verification and exhaustive live SQL Server business-rule scenarios remain outside the completed smoke checks.', 'Automated Chromium smoke checks are recorded in FINAL_VERIFICATION.md; exhaustive live SQL Server business-rule scenarios and manual visual/cross-browser review remain outside that coverage.')
+        path.write_text(content.rstrip() + '\n' + appendix)
+    submission = '''# Assessment submission details
+
+Fork: https://github.com/uni4zahri/northwind-support
+
+All four assessment tasks are implemented in order. README and APPROACH describe decisions, assumptions, AI assistance and known limitations. FINAL_VERIFICATION records the latest automated browser checks; Docker verification is recorded in README.
+
+Development login (local/demo use only):
+- Email: alex.turner@northwind-support.example
+- Password: Northwind_Local_Only_2026!
+
+Approximate active AI-assisted implementation estimates: Task 1 15 minutes; Task 2 25 minutes; Task 3 15 minutes; Task 4/setup/docs 15 minutes. Additional guided Docker troubleshooting/verification took approximately 30 minutes. These are estimates, not a candidate personal-effort timesheet. The final runner's measured elapsed time is in FINAL_VERIFICATION; downloads and installation waits are included.
+
+AI tools assisted implementation, testing and documentation. Remaining known limitations include concurrency control, session hardening and production deployment concerns detailed in README. Browser smoke checks do not claim exhaustive manual or cross-browser testing.
+
+This file prepares the submission content; it does not send it to an assessor. Candidate review and submission through the requested channel remain required.
+'''
+    (ROOT / 'SUBMISSION.md').write_text(submission)
+    run(['git', 'diff', '--check'])
+    run(['git', 'add', '--', 'package-lock.json', 'README.md', 'APPROACH.md', 'FINAL_VERIFICATION.md', 'SUBMISSION.md', 'scripts/final-check/finish.py', 'scripts/final-check/browser.cjs'])
+    run(['git', 'commit', '-m', 'test: verify live browser flows and record submission evidence'])
+    run(['git', 'push', 'origin', 'main'])
+    run(['git', 'fetch', 'origin'])
+    require(output(['git', 'rev-parse', 'HEAD']) == output(['git', 'rev-parse', 'origin/main']), 'Remote verification mismatch.')
+    print('\nSUCCESS: checks passed, evidence committed and pushed to your fork.')
+    print('Commit: ' + output(['git', 'rev-parse', '--short', 'HEAD']))
+    print('Submission details: SUBMISSION.md. Nothing has been emailed or sent to an assessor.')
+
+if __name__ == '__main__':
+    try:
+        main()
+    except (Exception, KeyboardInterrupt) as error:
+        print('\nSTOPPED: ' + str(error), file=sys.stderr)
+        print('Do not claim completion. Share this output; existing files/volumes are preserved and no force-push is used.', file=sys.stderr)
+        sys.exit(1)

@@ -55,3 +55,7 @@ Walk through: (1) how the list effect reacts without debouncing dropdowns, (2) w
 Final rough active AI-assisted time: Task 1 ~15 min; Task 2 ~25 min; Task 3 ~15 min; Task 4/setup/docs ~15 min. Estimates exclude pauses and access/environment waits and are not the candidate's personal time record.
 
 Additional guided Docker verification/troubleshooting: approximately 30 minutes, 00:16–00:46 on 17 October 2026 (Asia/Colombo), separate from the implementation estimates. Timings are approximate; commit dates were not rewritten.
+
+## Final automated browser verification
+
+See [FINAL_VERIFICATION.md](FINAL_VERIFICATION.md) for the latest successful live browser smoke checks and measured runner duration. The source-map-js lockfile uses patched version 1.2.2. Tests run with scripts/final-check/finish.py in Codespaces; each run retains a labelled demo ticket. Automated checks do not replace candidate review of the implementation.
